@@ -6,7 +6,7 @@ listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 listen_socket.bind((HOST, PORT))
 listen_socket.listen(1)
 
-print("Serving HTTP on port %s ..." % PORT)
+print(f"Serving HTTP on port {PORT}")
 
 
 def parse_request(request: bytes) -> str:
