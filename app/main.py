@@ -119,7 +119,7 @@ class HTTPResponse:
         builder = ResponseStringBuilder()
         response_text = builder.add_line(self.status_line).add_lines(self.headers_list)
         if self.body:
-            response_text.add_line(CRLF).add_line(self.body)
+            response_text.add_break().add_line(self.body)
         return response_text.build()
 
 
