@@ -1,140 +1,74 @@
 import socket
-from typing import Any
 
 HOST, PORT = "", 4221
-listen_socket = socket.create_server((HOST, PORT), reuse_port=True)
-listen_socket.listen(1)
-
+BUFFER_SIZE = 1024
 HTTP_VERSION = "HTTP/1.1"
 CRLF = "\r\n"
 HTTP_LB = CRLF * 2
-BUFFER_SIZE = 1024
-
-print(f"Serving HTTP on port {PORT}")
-
-
-class ResponseStringBuilder:
-    def __init__(self):
-        self._response = []
-
-    def add_line(self, line: str):
-        self._response.append(line)
-        return self
-
-    def add_lines(self, lines: list[str]):
-        self._response.extend(lines)
-        return self
-
-    def add_break(self):
-        self._response.append("")
-        return self
-
-    def build(self) -> str:
-        return CRLF.join(self._response)
 
 
 class HTTPRequest:
-    def __init__(self, request_bytes: bytes) -> None:
-        try:
-            self.request_text = request_bytes.decode("utf-8")
-        except UnicodeDecodeError as e:
-            raise ValueError("Error decoding request bytes") from e
+    def __init__(self, request_text):
+        self.method, self.path, self.version, self.headers = self.parse_request(
+            request_text
+        )
 
-        self.method = None
-        self.path = None
-        self.version = None
-        self.headers = {}
-        self._parse_request_line()
-        self._parse_headers()
-
-    def _parse_request_line(self) -> None:
-        request_line = self.request_text.split(CRLF)[0]
-        partitions = request_line.split()
-        if len(partitions) != 3:
-            raise ValueError(request_line)
-        self.method, self.path, self.version = partitions
-
-    def _parse_headers(self) -> None:
-        headers_dict = {}
-        for header in self.request_text.split(CRLF)[1:]:
-            partitions = header.split(" ")
-            if len(partitions) == 2:
-                key, value = partitions
-                key.replace(":", "")
-                headers_dict[key] = value
-        self.headers: dict[str, str] = headers_dict
-
-    def __repr__(self) -> str:
-        return self.request_text
+    @staticmethod
+    def parse_request(request_text):
+        lines = request_text.split(CRLF)
+        method, path, version = lines[0].split(" ")
+        headers = {
+            line.split(": ")[0]: line.split(": ")[1]
+            for line in lines[1:]
+            if ": " in line
+        }
+        return method, path, version, headers
 
 
 class HTTPResponse:
-
-    def __init__(self, request: HTTPRequest) -> None:
+    def __init__(self, request):
         self.request = request
-        self.status_code: str
-        self.status_text: str
-        self.body: str | None = None
-        self.representation_headers: dict[str, Any] = {}
-        self._process_request()
+        self.status_code = "200"
+        self.status_text = "OK"
+        self.headers = {"Content-Type": "text/plain"}
+        self.body = None
+        self.process_request()
 
-    def _process_request(self) -> None:
-        code = ""
-        text = ""
-        body = ""
-        path = self.request.path
-        if path is None:
-            raise ValueError("Path was not found.")
-        if path == "/":
-            code = "200"
-            text = "OK"
-        elif path.startswith("/echo/"):
-            code = "200"
-            text = "OK"
-            body = path[6:]
-            self.representation_headers["Content-Type"] = "text/plain"
-            self.representation_headers["Content-Length"] = str(len(body))
-
+    def process_request(self):
+        if self.request.path == "/":
+            self.body = "Home page"
+        elif self.request.path.startswith("/echo/"):
+            self.body = self.request.path[6:]
         else:
-            code = "404"
-            text = "Not Found"
-            # import sys
+            self.status_code = "404"
+            self.status_text = "Not Found"
+            self.body = "Page not found"
 
-            # sys.exit(1)
-        self.status_code = code
-        self.status_text = text
-        self.body = body
+        if self.body is not None:
+            self.headers["Content-Length"] = str(len(self.body))
 
-    @property
-    def status_line(self) -> str:
-        return f"{HTTP_VERSION} {self.status_code} {self.status_text}"
-
-    @property
-    def headers_list(self) -> list[str]:
-        return sorted(
-            [f"{key}: {value}" for key, value in self.representation_headers.items()]
-        )
-
-    def __repr__(self) -> str:
-        builder = ResponseStringBuilder()
-        response_text = builder.add_line(self.status_line).add_lines(self.headers_list)
-        if self.body:
-            response_text.add_break().add_line(self.body)
-        else:
-            response_text.add_break().add_break()
-        return response_text.build()
+    def build_response(self):
+        status_line = f"{HTTP_VERSION} {self.status_code} {self.status_text}{CRLF}"
+        headers = CRLF.join([f"{key}: {value}" for key, value in self.headers.items()])
+        return f'{status_line}{headers}{HTTP_LB}{self.body or ""}'.encode("utf-8")
 
 
-def main() -> None:
+def main():
+    listen_socket = socket.create_server((HOST, PORT))
+    listen_socket.listen(1)
+    print(f"Serving HTTP on port {PORT}...")
+
     while True:
         client_connection, _ = listen_socket.accept()
-
-        request = HTTPRequest(client_connection.recv(BUFFER_SIZE))
-        response = HTTPResponse(request)
-
-        print(repr(response).encode())
-        client_connection.sendall(repr(response).encode("utf-8"))
-        client_connection.close()
+        try:
+            request_data = client_connection.recv(BUFFER_SIZE).decode("utf-8")
+            request = HTTPRequest(request_data)
+            response = HTTPResponse(request)
+            client_connection.sendall(response.build_response())
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            client_connection.close()
 
 
 if __name__ == "__main__":
