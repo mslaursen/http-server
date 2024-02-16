@@ -34,6 +34,7 @@ def get_response_status(path: str) -> str:
 
 
 while True:
+    ##
     client_connection, client_address = listen_socket.accept()
 
     request = client_connection.recv(1024)
