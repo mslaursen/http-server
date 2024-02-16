@@ -1,4 +1,5 @@
 import socket
+from typing import Any
 
 HOST, PORT = "", 4221
 BUFFER_SIZE = 1024
@@ -8,13 +9,13 @@ HTTP_LB = CRLF * 2
 
 
 class HTTPRequest:
-    def __init__(self, request_text):
+    def __init__(self, request_text: str):
         self.method, self.path, self.version, self.headers = self.parse_request(
             request_text
         )
 
     @staticmethod
-    def parse_request(request_text):
+    def parse_request(request_text: str) -> tuple[str, str, str, dict[str, Any]]:
         lines = request_text.split(CRLF)
         method, path, version = lines[0].split(" ")
         headers = {
@@ -26,7 +27,7 @@ class HTTPRequest:
 
 
 class HTTPResponse:
-    def __init__(self, request):
+    def __init__(self, request: HTTPRequest):
         self.request = request
         self.status_code = "200"
         self.status_text = "OK"
@@ -34,11 +35,14 @@ class HTTPResponse:
         self.body = None
         self.process_request()
 
-    def process_request(self):
+    def process_request(self) -> None:
+        path_header = self.request.path[1:].title()
         if self.request.path == "/":
             self.body = "Home page"
         elif self.request.path.startswith("/echo/"):
             self.body = self.request.path[6:]
+        elif self.request.headers.get(path_header, None):
+            self.body = self.request.headers[path_header]
         else:
             self.status_code = "404"
             self.status_text = "Not Found"
@@ -47,14 +51,14 @@ class HTTPResponse:
         if self.body is not None:
             self.headers["Content-Length"] = str(len(self.body))
 
-    def build_response(self):
+    def build_response(self) -> bytes:
         status_line = f"{HTTP_VERSION} {self.status_code} {self.status_text}{CRLF}"
         headers = CRLF.join([f"{key}: {value}" for key, value in self.headers.items()])
         return f'{status_line}{headers}{HTTP_LB}{self.body or ""}'.encode("utf-8")
 
 
-def main():
-    listen_socket = socket.create_server((HOST, PORT))
+def main() -> None:
+    listen_socket = socket.create_server((HOST, PORT), reuse_port=True)
     listen_socket.listen(1)
     print(f"Serving HTTP on port {PORT}...")
 
@@ -67,6 +71,9 @@ def main():
             client_connection.sendall(response.build_response())
         except Exception as e:
             print(f"Error: {e}")
+            import sys
+
+            sys.exit(1)
         finally:
             client_connection.close()
 
