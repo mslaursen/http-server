@@ -11,6 +11,7 @@ def main() -> None:
     HTTP_VERSION = "HTTP/1.1"
     CRLF = "\r\n"
     HTTP_LB = CRLF * 2
+    BUFFER_SIZE = 1024
 
     print(f"Serving HTTP on port {PORT}")
 
@@ -34,7 +35,7 @@ def main() -> None:
     while True:
         client_connection, _ = listen_socket.accept()
 
-        request = client_connection.recv(1024)
+        request = client_connection.recv(BUFFER_SIZE)
 
         _, path, _ = parse_request_line(request)
         response_status = get_response_status(path)
@@ -45,4 +46,5 @@ def main() -> None:
         client_connection.close()
 
 
-main()
+if __name__ == "__main__":
+    main()
