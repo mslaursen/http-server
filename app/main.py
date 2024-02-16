@@ -18,15 +18,10 @@ class ResponseStringBuilder:
         self._response = []
 
     def add_line(self, line: str):
-        if line in self._response:
-            raise ValueError("Attempting to add duplicate value.")
         self._response.append(line)
         return self
 
     def add_lines(self, lines: list[str]):
-        if set(self._response).intersection(lines):
-            raise ValueError("Attempting to add duplicate value.")
-
         self._response.extend(lines)
         return self
 
@@ -99,7 +94,9 @@ class HTTPResponse:
         else:
             code = "404"
             text = "Not Found"
-
+            # import sys
+        #
+        # sys.exit(1)
         self.status_code = code
         self.status_text = text
         self.body = body
@@ -119,6 +116,7 @@ class HTTPResponse:
         response_text = builder.add_line(self.status_line).add_lines(self.headers_list)
         if self.body:
             response_text.add_line(CRLF).add_line(self.body)
+        response_text.add_line(CRLF)
         return response_text.build()
 
 
@@ -129,7 +127,7 @@ def main() -> None:
         request = HTTPRequest(client_connection.recv(BUFFER_SIZE))
         response = HTTPResponse(request)
 
-        print(response)
+        print(repr(response).encode())
 
         client_connection.sendall(repr(response).encode("utf-8"))
         client_connection.close()
