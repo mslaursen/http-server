@@ -25,6 +25,10 @@ class ResponseStringBuilder:
         self._response.extend(lines)
         return self
 
+    def add_break(self):
+        self._response.extend("")
+        return self
+
     def build(self) -> str:
         return CRLF.join(self._response)
 
@@ -95,8 +99,8 @@ class HTTPResponse:
             code = "404"
             text = "Not Found"
             # import sys
-        #
-        # sys.exit(1)
+
+            # sys.exit(1)
         self.status_code = code
         self.status_text = text
         self.body = body
@@ -116,7 +120,6 @@ class HTTPResponse:
         response_text = builder.add_line(self.status_line).add_lines(self.headers_list)
         if self.body:
             response_text.add_line(CRLF).add_line(self.body)
-        response_text.add_line(CRLF)
         return response_text.build()
 
 
@@ -126,8 +129,6 @@ def main() -> None:
 
         request = HTTPRequest(client_connection.recv(BUFFER_SIZE))
         response = HTTPResponse(request)
-
-        print(repr(response).encode())
 
         client_connection.sendall(repr(response).encode("utf-8"))
         client_connection.close()
