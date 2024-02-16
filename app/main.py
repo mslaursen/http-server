@@ -1,4 +1,5 @@
 import socket
+import threading
 from typing import Any
 
 HOST, PORT = "", 4221
@@ -57,25 +58,29 @@ class HTTPResponse:
         return f'{status_line}{headers}{HTTP_LB}{self.body or ""}'.encode("utf-8")
 
 
+def handle_client_connection(client_connection: socket.socket) -> None:
+    try:
+        request_data = client_connection.recv(BUFFER_SIZE).decode("utf-8")
+        request = HTTPRequest(request_data)
+        response = HTTPResponse(request)
+        client_connection.sendall(response.build_response())
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        client_connection.close()
+
+
 def main() -> None:
-    listen_socket = socket.create_server((HOST, PORT), reuse_port=True)
-    listen_socket.listen(1)
+    listen_socket = socket.create_server((HOST, PORT))
+    listen_socket.listen(5)
     print(f"Serving HTTP on port {PORT}...")
 
     while True:
         client_connection, _ = listen_socket.accept()
-        try:
-            request_data = client_connection.recv(BUFFER_SIZE).decode("utf-8")
-            request = HTTPRequest(request_data)
-            response = HTTPResponse(request)
-            client_connection.sendall(response.build_response())
-        except Exception as e:
-            print(f"Error: {e}")
-            import sys
-
-            sys.exit(1)
-        finally:
-            client_connection.close()
+        client_thread = threading.Thread(
+            target=handle_client_connection, args=(client_connection,)
+        )
+        client_thread.start()
 
 
 if __name__ == "__main__":
