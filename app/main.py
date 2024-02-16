@@ -29,3 +29,6 @@ def main():
                 server_socket.send("HTTP/1.1 404 Not Found\r\n\r\n".encode("ascii"))
         # server_socket.send("HTTP/1.1 200 OK\r\n\r\n".encode("ascii"))
         server_socket.close()
+
+
+main()
