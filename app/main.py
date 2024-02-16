@@ -26,7 +26,7 @@ class ResponseStringBuilder:
         return self
 
     def add_break(self):
-        self._response.extend("")
+        self._response.append("")
         return self
 
     def build(self) -> str:
@@ -120,6 +120,8 @@ class HTTPResponse:
         response_text = builder.add_line(self.status_line).add_lines(self.headers_list)
         if self.body:
             response_text.add_break().add_line(self.body)
+        else:
+            response_text.add_break().add_break()
         return response_text.build()
 
 
@@ -130,6 +132,7 @@ def main() -> None:
         request = HTTPRequest(client_connection.recv(BUFFER_SIZE))
         response = HTTPResponse(request)
 
+        print(repr(response).encode())
         client_connection.sendall(repr(response).encode("utf-8"))
         client_connection.close()
 
