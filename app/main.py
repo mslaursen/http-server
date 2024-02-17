@@ -48,6 +48,9 @@ class HTTPResponse:
         elif self.request.method == "POST":
             self._handle_post_request()
 
+        if self.body:
+            self.headers["Content-Length"] = str(len(self.body))
+
     def _handle_get_request(self):
         if self.request.path == "/":
             self.body = "Home page"
