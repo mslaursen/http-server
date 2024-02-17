@@ -105,7 +105,7 @@ class HTTPResponse:
 
     def _set_response_created(self) -> None:
         self.status_code = "201"
-        self.status_code = "Created"
+        self.status_text = "Created"
 
     def build_response(self) -> bytes:
         status_line = f"{HTTP_VERSION} {self.status_code} {self.status_text}{CRLF}"
@@ -129,9 +129,6 @@ def handle_client_connection(
         raise Exception()
     except Exception as e:
         print(f"Error: {e}")
-        import sys
-
-        sys.exit(1)
     finally:
         client_connection.close()
 
@@ -140,7 +137,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", default="./files", type=str)
 
-    listen_socket = socket.create_server((HOST, PORT))
+    listen_socket = socket.create_server((HOST, PORT), reuse_port=True)
     listen_socket.listen(5)
     print(f"Serving HTTP on port {PORT}...")
 
