@@ -3,16 +3,13 @@ import threading
 from typing import Any
 import argparse
 from pathlib import Path
-import os
+
 
 HOST, PORT = "", 4221
 BUFFER_SIZE = 1024
 HTTP_VERSION = "HTTP/1.1"
 CRLF = "\r\n"
 HTTP_LB = CRLF * 2
-
-
-parsed_args: argparse.Namespace
 
 
 class HTTPRequest:
@@ -58,27 +55,29 @@ class HTTPResponse:
         elif self.request.path.startswith("/files/"):
             if self.parsed_args is None:
                 raise ValueError("Directory not given.")
+
             files_dir: Path = Path(__file__).parent.parent / self.parsed_args.directory
-            if os.path.exists(files_dir) is False:
+            if not files_dir.is_dir():
                 raise ValueError("Directory does not exist")
 
             file_path = files_dir / self.request.path[7:]
-            if os.path.exists(file_path) is False:
-                self.status_code = "404"
-                self.status_text = "Not Found"
-                self.body = "Page not found"
+            if not file_path.exists():
+                self._set_response_not_found()
                 return
 
             with open(file_path, "r") as f:
                 self.body = f.read()
             self.headers["Content-Type"] = "application/octet-stream"
         else:
-            self.status_code = "404"
-            self.status_text = "Not Found"
-            self.body = "Page not found"
+            self._set_response_not_found()
 
         if self.body is not None:
             self.headers["Content-Length"] = str(len(self.body))
+
+    def _set_response_not_found(self) -> None:
+        self.status_code = "404"
+        self.status_text = "Not Found"
+        self.body = "Page not found"
 
     def build_response(self) -> bytes:
         status_line = f"{HTTP_VERSION} {self.status_code} {self.status_text}{CRLF}"
