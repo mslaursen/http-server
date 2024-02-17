@@ -22,19 +22,15 @@ class HTTPRequest:
     def _parse_request(
         request_text: str,
     ) -> tuple[str, str, str, str | None, dict[str, Any]]:
-        body_split = request_text.split(HTTP_HEADER_END)
-        body = None
-        if len(body_split) > 1:
-            body = body_split[1]
-
-        lines = body_split[0].split(CRLF)
+        headers_part, _, body = request_text.partition(HTTP_HEADER_END)
+        lines = headers_part.split(CRLF)
         method, path, version = lines[0].split(" ")
         headers = {
             line.split(": ")[0]: line.split(": ")[1]
             for line in lines[1:]
             if ": " in line
         }
-        return method, path, version, body, headers
+        return method, path, version, body if body else None, headers
 
 
 class HTTPResponse:
