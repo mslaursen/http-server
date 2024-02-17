@@ -1,6 +1,9 @@
 import socket
 import threading
 from typing import Any
+import argparse
+from pathlib import Path
+import os
 
 HOST, PORT = "", 4221
 BUFFER_SIZE = 1024
@@ -9,14 +12,17 @@ CRLF = "\r\n"
 HTTP_LB = CRLF * 2
 
 
+parsed_args: argparse.Namespace
+
+
 class HTTPRequest:
     def __init__(self, request_text: str):
-        self.method, self.path, self.version, self.headers = self.parse_request(
+        self.method, self.path, self.version, self.headers = self._parse_request(
             request_text
         )
 
     @staticmethod
-    def parse_request(request_text: str) -> tuple[str, str, str, dict[str, Any]]:
+    def _parse_request(request_text: str) -> tuple[str, str, str, dict[str, Any]]:
         lines = request_text.split(CRLF)
         method, path, version = lines[0].split(" ")
         headers = {
@@ -28,15 +34,20 @@ class HTTPRequest:
 
 
 class HTTPResponse:
-    def __init__(self, request: HTTPRequest):
+    def __init__(
+        self,
+        request: HTTPRequest,
+        parsed_args: argparse.Namespace | None,
+    ):
         self.request = request
+        self.parsed_args = parsed_args
         self.status_code = "200"
         self.status_text = "OK"
         self.headers = {"Content-Type": "text/plain"}
         self.body = None
-        self.process_request()
+        self._process_request()
 
-    def process_request(self) -> None:
+    def _process_request(self) -> None:
         path_header = self.request.path[1:].title()
         if self.request.path == "/":
             self.body = "Home page"
@@ -44,6 +55,23 @@ class HTTPResponse:
             self.body = self.request.path[6:]
         elif self.request.headers.get(path_header, None):
             self.body = self.request.headers[path_header]
+        elif self.request.path.startswith("/files/"):
+            if self.parsed_args is None:
+                raise ValueError("Directory not given.")
+            files_dir: Path = Path(__file__).parent.parent / self.parsed_args.directory
+            if os.path.exists(files_dir) is False:
+                raise ValueError("Directory does not exist")
+
+            file_path = files_dir / self.request.path[7:]
+            if os.path.exists(file_path) is False:
+                self.status_code = "404"
+                self.status_text = "Not Found"
+                self.body = "Page not found"
+                return
+
+            with open(file_path, "r") as f:
+                self.body = f.read()
+            self.headers["Content-Type"] = "application/octet-stream"
         else:
             self.status_code = "404"
             self.status_text = "Not Found"
@@ -58,11 +86,13 @@ class HTTPResponse:
         return f'{status_line}{headers}{HTTP_LB}{self.body or ""}'.encode("utf-8")
 
 
-def handle_client_connection(client_connection: socket.socket) -> None:
+def handle_client_connection(
+    client_connection: socket.socket, parsed_args: argparse.Namespace
+) -> None:
     try:
         request_data = client_connection.recv(BUFFER_SIZE).decode("utf-8")
         request = HTTPRequest(request_data)
-        response = HTTPResponse(request)
+        response = HTTPResponse(request, parsed_args)
         client_connection.sendall(response.build_response())
     except Exception as e:
         print(f"Error: {e}")
@@ -71,6 +101,9 @@ def handle_client_connection(client_connection: socket.socket) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--directory", default="./files", type=str)
+
     listen_socket = socket.create_server((HOST, PORT))
     listen_socket.listen(5)
     print(f"Serving HTTP on port {PORT}...")
@@ -78,11 +111,10 @@ def main() -> None:
     while True:
         client_connection, _ = listen_socket.accept()
         client_thread = threading.Thread(
-            target=handle_client_connection, args=(client_connection,)
+            target=handle_client_connection,
+            args=(client_connection, parser.parse_args()),
         )
         client_thread.start()
-
-        #
 
 
 if __name__ == "__main__":
